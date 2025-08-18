@@ -22,7 +22,7 @@ export const RecipeCard = ({
   image,
   category,
   whereFrom,
-  isFavorite = false,
+  isFavorite,
   onToggleFavorite,
 }: RecipeCardProps) => {
   return (
