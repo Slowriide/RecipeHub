@@ -59,7 +59,7 @@ export const RecipeCard = ({
           <Badge variant="secondary" className="text-xs">
             {category}
           </Badge>
-          <Badge className={`text-xs ${whereFrom}`}>{whereFrom}</Badge>
+          <Badge className={`text-xs bg-primario`}>{whereFrom}</Badge>
         </div>
 
         <Link to={`/recipe/${id}`}>

@@ -2,19 +2,32 @@ import { useParams, Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-
 import { Clock, Users, Heart, Star, CheckCircle } from "lucide-react";
 import { useState } from "react";
-import { sampleRecipes } from "@/receipts/data/recipes";
+import { useRecipeById } from "@/receipts/hooks/usRecipeById";
+import { getUserFromLocal } from "@/firebase/auth";
+import {
+  useAddFavorite,
+  useIsFavorite,
+  useRemoveFavorite,
+} from "@/receipts/hooks/useFavorites";
 
 export const RecipeDetailsPage = () => {
+  const user = getUserFromLocal();
   const { id } = useParams<{ id: string }>();
-  const [isFavorite, setIsFavorite] = useState(false);
+
   const [checkedIngredients, setCheckedIngredients] = useState<number[]>([]);
+  const { data: recipe, isLoading, isError } = useRecipeById(id!);
 
-  const recipe = sampleRecipes.find((r) => r.id === id);
+  const isFavoriteQuery = useIsFavorite(user.uid ?? null, id!);
+  const isFavorite = isFavoriteQuery.data ?? false;
 
-  if (!recipe) {
+  const addFavMutation = useAddFavorite();
+  const removeFavMutation = useRemoveFavorite();
+
+  if (isLoading) return <p>Loading...</p>;
+
+  if (isError || !recipe) {
     return (
       <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
         <Card className="p-8 text-center">
@@ -32,16 +45,34 @@ export const RecipeDetailsPage = () => {
     );
   }
 
+  const handleToggleFavorite = async () => {
+    if (!user) return alert("Please log in to manage favorites");
+
+    const recipeToSave = {
+      id: recipe.idMeal,
+      title: recipe.strMeal,
+      description: recipe.strInstructions || "",
+      image: recipe.strMealThumb,
+      cookTime: "25 Mins | 30 Mins",
+      category: recipe.strCategory,
+      whereFrom: recipe.strArea,
+    };
+
+    if (isFavorite) {
+      removeFavMutation.mutate({ userId: user.uid, recipeId: id! });
+    } else {
+      addFavMutation.mutate({
+        userId: user.uid,
+        recipe: recipeToSave,
+        recipeId: id!,
+      });
+    }
+  };
+
   const toggleIngredient = (index: number) => {
     setCheckedIngredients((prev) =>
       prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
     );
-  };
-
-  const difficultyColors = {
-    Easy: "bg-sage text-sage-foreground",
-    Medium: "bg-warm-brown text-white",
-    Hard: "bg-terracotta text-white",
   };
 
   return (
@@ -49,8 +80,8 @@ export const RecipeDetailsPage = () => {
       {/* Hero Image */}
       <div className="relative h-64 md:h-96 overflow-hidden">
         <img
-          src={recipe.image}
-          alt={recipe.title}
+          src={recipe?.strMealThumb}
+          alt={recipe?.strMeal}
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-black/20"></div>
@@ -60,7 +91,7 @@ export const RecipeDetailsPage = () => {
           variant="secondary"
           size="sm"
           className="absolute top-4 right-4 bg-white/90 hover:bg-white"
-          onClick={() => setIsFavorite(!isFavorite)}
+          onClick={handleToggleFavorite}
         >
           <Heart
             className={`h-4 w-4 ${
@@ -78,10 +109,8 @@ export const RecipeDetailsPage = () => {
             <Card className="shadow-card">
               <CardContent className="p-6">
                 <div className="flex flex-wrap gap-2 mb-4">
-                  <Badge variant="secondary">{recipe.category}</Badge>
-                  <Badge className={difficultyColors[recipe.difficulty]}>
-                    {recipe.difficulty}
-                  </Badge>
+                  <Badge variant="secondary">{recipe?.strArea}</Badge>
+                  <Badge className="bg-primario">{recipe?.strCategory}</Badge>
                   {recipe.tags.map((tag) => (
                     <Badge key={tag} variant="outline">
                       {tag}
@@ -90,25 +119,25 @@ export const RecipeDetailsPage = () => {
                 </div>
 
                 <h1 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
-                  {recipe.title}
+                  {recipe?.strMeal}
                 </h1>
 
                 <p className="text-lg text-muted-foreground mb-6">
-                  {recipe.description}
+                  {recipe?.strYoutube}
                 </p>
 
                 <div className="flex flex-wrap items-center gap-6">
                   <div className="flex items-center space-x-2">
                     <Clock className="h-5 w-5 text-muted-foreground" />
                     <span className="text-sm">
-                      <strong>Prep:</strong> {recipe.prepTime} |{" "}
-                      <strong>Cook:</strong> {recipe.cookTime}
+                      <strong>Prep:</strong> 25 Mins | <strong>Cook:</strong> 30
+                      Mins
                     </span>
                   </div>
 
                   <div className="flex items-center space-x-2">
                     <Users className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm">Serves {recipe.servings}</span>
+                    <span className="text-sm">Serves 4</span>
                   </div>
 
                   <div className="flex items-center space-x-1">
@@ -133,9 +162,9 @@ export const RecipeDetailsPage = () => {
                   Instructions
                 </h2>
                 <div className="space-y-6">
-                  {recipe.instructions.map((instruction, index) => (
+                  {recipe.instructions?.map((instruction, index) => (
                     <div key={index} className="flex gap-4">
-                      <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-semibold">
+                      <div className="flex-shrink-0 w-8 h-8 bg-primario text-primary-foreground rounded-full flex items-center justify-center font-semibold">
                         {index + 1}
                       </div>
                       <p className="text-foreground leading-relaxed flex-1 pt-1">
@@ -163,8 +192,8 @@ export const RecipeDetailsPage = () => {
                         onClick={() => toggleIngredient(index)}
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                           checkedIngredients.includes(index)
-                            ? "bg-primary border-primary"
-                            : "border-border hover:border-primary"
+                            ? "bg-primario border-primario"
+                            : "border-border hover:border-primario"
                         }`}
                       >
                         {checkedIngredients.includes(index) && (
@@ -190,7 +219,7 @@ export const RecipeDetailsPage = () => {
             <Card className="shadow-card">
               <CardContent className="p-6 space-y-3">
                 <Button
-                  onClick={() => setIsFavorite(!isFavorite)}
+                  onClick={handleToggleFavorite}
                   variant={isFavorite ? "default" : "outline"}
                   className="w-full"
                 >
