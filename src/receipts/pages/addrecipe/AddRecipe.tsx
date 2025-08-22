@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,112 +15,153 @@ import { Badge } from "@/components/ui/badge";
 
 import { Plus, X, Upload } from "lucide-react";
 import { Link } from "react-router";
-import { categories, difficulties } from "@/receipts/data/recipes";
 import { toast } from "sonner";
+import { Controller, useForm, useFieldArray } from "react-hook-form";
+import { areas, categories, type Recipe } from "@/interfaces/recipe.response";
+import { cn } from "@/lib/utils";
+import { getUserFromLocal } from "@/firebase/auth";
+import { useAddRecipe } from "@/receipts/hooks/useAddRecipe";
 
-export const AddRecipe = () => {
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    image: "",
-    prepTime: "",
-    cookTime: "",
-    servings: "",
-    category: "",
-    difficulty: "",
+interface Props {
+  recipe: Recipe;
+}
+interface FormValues {
+  strMeal: string;
+  strYoutube: string | null;
+  strMealThumb: string | null;
+  strCategory: string;
+  strArea: string;
+  ingredients: { name: string }[];
+  instructions: { step: string }[];
+  tags: string[];
+}
+export const AddRecipe = ({ recipe }: Props) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const user = getUserFromLocal();
+
+  const { mutate: addRecipe } = useAddRecipe(user.uid);
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors },
+    getValues,
+    setValue,
+    watch,
+    reset,
+  } = useForm({
+    defaultValues: {
+      strMeal: recipe?.strMeal || "",
+      strYoutube: recipe?.strYoutube || "",
+      strMealThumb: recipe?.strMealThumb || "",
+      strCategory: recipe?.strCategory || "",
+      strArea: recipe?.strArea || "",
+      ingredients: [{ name: "" }],
+      instructions: [{ step: "" }],
+      tags: [] as string[],
+    },
   });
 
-  const [ingredients, setIngredients] = useState<string[]>([""]);
-  const [instructions, setInstructions] = useState<string[]>([""]);
-  const [tags, setTags] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState("");
+  const {
+    fields: ingredientFields,
+    append: appendIngredient,
+    remove: removeIngredient,
+  } = useFieldArray({ control, name: "ingredients" });
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  const {
+    fields: instructionFields,
+    append: appendInstruction,
+    remove: removeInstruction,
+  } = useFieldArray({ control, name: "instructions" });
 
-  const addIngredient = () => {
-    setIngredients((prev) => [...prev, ""]);
-  };
-
-  const updateIngredient = (index: number, value: string) => {
-    setIngredients((prev) =>
-      prev.map((item, i) => (i === index ? value : item))
-    );
-  };
-
-  const removeIngredient = (index: number) => {
-    setIngredients((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const addInstruction = () => {
-    setInstructions((prev) => [...prev, ""]);
-  };
-
-  const updateInstruction = (index: number, value: string) => {
-    setInstructions((prev) =>
-      prev.map((item, i) => (i === index ? value : item))
-    );
-  };
-
-  const removeInstruction = (index: number) => {
-    setInstructions((prev) => prev.filter((_, i) => i !== index));
-  };
+  const currentTags = watch("tags");
 
   const addTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags((prev) => [...prev, newTag.trim()]);
-      setNewTag("");
-    }
+    const newTag = inputRef.current!.value;
+    if (newTag === "") return;
+    const tagSet = new Set(getValues("tags"));
+    tagSet.add(newTag);
+    setValue("tags", Array.from(tagSet));
+    inputRef.current!.value = "";
   };
 
-  const removeTag = (tagToRemove: string) => {
-    setTags((prev) => prev.filter((tag) => tag !== tagToRemove));
+  const removeTag = (tag: string) => {
+    const tagSet = new Set(getValues("tags"));
+    tagSet.delete(tag);
+    setValue("tags", Array.from(tagSet));
+    inputRef.current!.value = "";
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (data: FormValues) => {
+    // Convertimos ingredients e instructions a Recipe si es necesario
 
-    // Basic validation
-    if (!formData.title || !formData.description || !formData.category) {
-      toast.error("Missing Information");
-      return;
-    }
+    const recipeToSave: Recipe = {
+      idMeal: "", // lo puedes generar o dejar vacío
+      strMeal: data.strMeal,
+      strMealAlternate: null,
+      strCategory: data.strCategory,
+      strArea: data.strArea,
+      strInstructions: data.instructions.map((i) => i.step).join("\n"),
+      strMealThumb: data.strMealThumb || "",
+      strTags: data.tags.length ? data.tags.join(",") : null,
+      strYoutube: data.strYoutube,
+      // Map ingredients a strIngredient1..20
+      strIngredient1: data.ingredients[0]?.name || null,
+      strIngredient2: data.ingredients[1]?.name || null,
+      strIngredient3: data.ingredients[2]?.name || null,
+      strIngredient4: data.ingredients[3]?.name || null,
+      strIngredient5: data.ingredients[4]?.name || null,
+      strIngredient6: data.ingredients[5]?.name || null,
+      strIngredient7: data.ingredients[6]?.name || null,
+      strIngredient8: data.ingredients[7]?.name || null,
+      strIngredient9: data.ingredients[8]?.name || null,
+      strIngredient10: data.ingredients[9]?.name || null,
+      strIngredient11: data.ingredients[10]?.name || null,
+      strIngredient12: data.ingredients[11]?.name || null,
+      strIngredient13: data.ingredients[12]?.name || null,
+      strIngredient14: data.ingredients[13]?.name || null,
+      strIngredient15: data.ingredients[14]?.name || null,
+      strIngredient16: data.ingredients[15]?.name || null,
+      strIngredient17: data.ingredients[16]?.name || null,
+      strIngredient18: data.ingredients[17]?.name || null,
+      strIngredient19: data.ingredients[18]?.name || null,
+      strIngredient20: data.ingredients[19]?.name || null,
+      strMeasure1: null,
+      strMeasure2: null,
+      strMeasure3: null,
+      strMeasure4: null,
+      strMeasure5: null,
+      strMeasure6: null,
+      strMeasure7: null,
+      strMeasure8: null,
+      strMeasure9: null,
+      strMeasure10: null,
+      strMeasure11: null,
+      strMeasure12: null,
+      strMeasure13: null,
+      strMeasure14: null,
+      strMeasure15: null,
+      strMeasure16: null,
+      strMeasure17: null,
+      strMeasure18: null,
+      strMeasure19: null,
+      strMeasure20: null,
+      strSource: null,
+      strImageSource: null,
+      strCreativeCommonsConfirmed: null,
+      dateModified: null,
+    };
 
-    if (ingredients.filter((ing) => ing.trim()).length === 0) {
-      toast.error("Missing Ingredients");
-      return;
-    }
-
-    if (instructions.filter((inst) => inst.trim()).length === 0) {
-      toast.error("Missing Instructions");
-      return;
-    }
-
-    // Here you would typically save to a database
-    console.log("Recipe submitted:", {
-      ...formData,
-      ingredients: ingredients.filter((ing) => ing.trim()),
-      instructions: instructions.filter((inst) => inst.trim()),
-      tags,
+    addRecipe(recipeToSave, {
+      onSuccess: () => {
+        toast.success("Recipe added!");
+        reset();
+      },
+      onError: () => {
+        toast.error("Error adding recipe");
+      },
     });
-
-    toast.success("Recipe Added!");
-
-    // Reset form (in a real app, you might navigate to the new recipe page)
-    setFormData({
-      title: "",
-      description: "",
-      image: "",
-      prepTime: "",
-      cookTime: "",
-      servings: "",
-      category: "",
-      difficulty: "",
-    });
-    setIngredients([""]);
-    setInstructions([""]);
-    setTags([]);
   };
 
   return (
@@ -135,9 +176,9 @@ export const AddRecipe = () => {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 ">
           {/* Basic Information */}
-          <Card className="shadow-card">
+          <Card className="shadow-card py-6">
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
             </CardHeader>
@@ -147,25 +188,41 @@ export const AddRecipe = () => {
                   <Label htmlFor="title">Recipe Title *</Label>
                   <Input
                     id="title"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange("title", e.target.value)}
+                    {...register("strMeal", {
+                      required: true,
+                    })}
                     placeholder="Enter recipe title"
-                    className="mt-1"
+                    className={cn(
+                      "w-full px-4 py-3 mt-1 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200",
+                      {
+                        "border-red-500": errors.strMeal,
+                      }
+                    )}
                   />
+                  {errors.strMeal && (
+                    <p className="text-red-500 text-sm">Title required</p>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">
                   <Label htmlFor="description">Description *</Label>
                   <Textarea
                     id="description"
-                    value={formData.description}
-                    onChange={(e) =>
-                      handleInputChange("description", e.target.value)
-                    }
-                    placeholder="Brief description of your recipe"
+                    {...register("strYoutube", { required: true })}
+                    placeholder="Youtube link or description"
                     rows={3}
-                    className="mt-1"
+                    className={cn(
+                      "w-full px-4 py-3 mt-1 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200",
+                      {
+                        "border-red-500": errors.strMeal,
+                      }
+                    )}
                   />
+                  {errors.strYoutube && (
+                    <p className="text-red-500 text-sm">
+                      Link or description required
+                    </p>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">
@@ -173,10 +230,7 @@ export const AddRecipe = () => {
                   <div className="flex gap-2 mt-1">
                     <Input
                       id="image"
-                      value={formData.image}
-                      onChange={(e) =>
-                        handleInputChange("image", e.target.value)
-                      }
+                      {...register("strMealThumb")}
                       placeholder="https://example.com/image.jpg"
                     />
                     <Button type="button" variant="outline">
@@ -186,105 +240,82 @@ export const AddRecipe = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="prepTime">Prep Time</Label>
-                  <Input
-                    id="prepTime"
-                    value={formData.prepTime}
-                    onChange={(e) =>
-                      handleInputChange("prepTime", e.target.value)
-                    }
-                    placeholder="e.g. 15 mins"
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="cookTime">Cook Time</Label>
-                  <Input
-                    id="cookTime"
-                    value={formData.cookTime}
-                    onChange={(e) =>
-                      handleInputChange("cookTime", e.target.value)
-                    }
-                    placeholder="e.g. 30 mins"
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="servings">Servings</Label>
-                  <Input
-                    id="servings"
-                    type="number"
-                    value={formData.servings}
-                    onChange={(e) =>
-                      handleInputChange("servings", e.target.value)
-                    }
-                    placeholder="4"
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
                   <Label htmlFor="category">Category *</Label>
-                  <Select
-                    value={formData.category}
-                    onValueChange={(value) =>
-                      handleInputChange("category", value)
-                    }
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.slice(1).map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="strCategory"
+                    control={control}
+                    rules={{ required: "Category is required" }}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.strCategory && (
+                    <p className="text-red-500 text-sm">Category required</p>
+                  )}
                 </div>
 
                 <div>
-                  <Label htmlFor="difficulty">Difficulty</Label>
-                  <Select
-                    value={formData.difficulty}
-                    onValueChange={(value) =>
-                      handleInputChange("difficulty", value)
-                    }
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select difficulty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {difficulties.slice(1).map((difficulty) => (
-                        <SelectItem key={difficulty} value={difficulty}>
-                          {difficulty}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="Area">Area *</Label>
+                  <Controller
+                    name="strArea"
+                    control={control}
+                    rules={{ required: "Area is required" }}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select area" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {areas.map((area) => (
+                            <SelectItem key={area} value={area}>
+                              {area}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.strArea && (
+                    <p className="text-red-500 text-sm">Area required</p>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Ingredients */}
-          <Card className="shadow-card">
+          <Card className="shadow-card  py-6">
             <CardHeader>
               <CardTitle>Ingredients</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {ingredients.map((ingredient, index) => (
-                <div key={index} className="flex gap-2">
+              {ingredientFields.map((field, index) => (
+                <div key={field.id} className="flex gap-2">
                   <Input
-                    value={ingredient}
-                    onChange={(e) => updateIngredient(index, e.target.value)}
+                    {...register(`ingredients.${index}.name` as const, {
+                      required: true,
+                    })}
                     placeholder={`Ingredient ${index + 1}`}
                     className="flex-1"
                   />
-                  {ingredients.length > 1 && (
+                  {ingredientFields.length > 1 && (
                     <Button
                       type="button"
                       variant="outline"
@@ -299,7 +330,7 @@ export const AddRecipe = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={addIngredient}
+                onClick={() => appendIngredient({ name: "" })}
                 className="w-full"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -309,24 +340,25 @@ export const AddRecipe = () => {
           </Card>
 
           {/* Instructions */}
-          <Card className="shadow-card">
+          <Card className="shadow-card  py-6">
             <CardHeader>
               <CardTitle>Instructions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {instructions.map((instruction, index) => (
-                <div key={index} className="flex gap-2">
+              {instructionFields.map((field, index) => (
+                <div key={field.id} className="flex gap-2">
                   <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-semibold text-sm mt-1">
                     {index + 1}
                   </div>
                   <Textarea
-                    value={instruction}
-                    onChange={(e) => updateInstruction(index, e.target.value)}
+                    {...register(`instructions.${index}.step` as const, {
+                      required: true,
+                    })}
                     placeholder={`Step ${index + 1} instructions`}
                     rows={2}
                     className="flex-1"
                   />
-                  {instructions.length > 1 && (
+                  {instructionFields.length > 1 && (
                     <Button
                       type="button"
                       variant="outline"
@@ -342,7 +374,7 @@ export const AddRecipe = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={addInstruction}
+                onClick={() => appendInstruction({ step: "" })}
                 className="w-full"
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -352,35 +384,41 @@ export const AddRecipe = () => {
           </Card>
 
           {/* Tags */}
-          <Card className="shadow-card">
+          <Card className="shadow-card  py-6">
             <CardHeader>
               <CardTitle>Tags (Optional)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
                 <Input
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
                   placeholder="Add a tag"
-                  onKeyPress={(e) =>
-                    e.key === "Enter" && (e.preventDefault(), addTag())
-                  }
+                  ref={inputRef}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " " || e.key === ",") {
+                      e.preventDefault();
+                      addTag();
+                    }
+                  }}
                 />
                 <Button type="button" onClick={addTag}>
                   Add
                 </Button>
               </div>
-              {tags.length > 0 && (
+              {currentTags.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {tags.map((tag) => (
+                  {currentTags.map((tag) => (
                     <Badge
                       key={tag}
                       variant="secondary"
-                      className="cursor-pointer"
-                      onClick={() => removeTag(tag)}
+                      className="cursor-pointer flex items-center gap-1"
                     >
-                      {tag}
-                      <X className="h-3 w-3 ml-1" />
+                      <span>{tag}</span>
+                      <button
+                        onClick={() => removeTag(tag)}
+                        className="hover:cursor-pointer ml-2 hover:text-red-500 transition-colors duration-200"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </Badge>
                   ))}
                 </div>
