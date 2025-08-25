@@ -11,6 +11,7 @@ import {
   useIsFavorite,
   useRemoveFavorite,
 } from "@/receipts/hooks/useFavorites";
+import type { RecipeWithFavorite } from "@/receipts/components/wrapper/RecipeCardWrapper";
 
 export const RecipeDetailsPage = () => {
   const user = getUserFromLocal();
@@ -18,8 +19,9 @@ export const RecipeDetailsPage = () => {
 
   const [checkedIngredients, setCheckedIngredients] = useState<number[]>([]);
   const { data: recipe, isLoading, isError } = useRecipeById(id!);
+  const recipeId = recipe?.idMeal ?? id!;
 
-  const isFavoriteQuery = useIsFavorite(user.uid ?? null, id!);
+  const isFavoriteQuery = useIsFavorite(user.uid ?? null, recipeId);
   const isFavorite = isFavoriteQuery.data ?? false;
 
   const addFavMutation = useAddFavorite();
@@ -48,7 +50,7 @@ export const RecipeDetailsPage = () => {
   const handleToggleFavorite = async () => {
     if (!user) return alert("Please log in to manage favorites");
 
-    const recipeToSave = {
+    const recipeToSave: RecipeWithFavorite = {
       id: recipe.idMeal,
       title: recipe.strMeal,
       description: recipe.strInstructions || "",
@@ -59,12 +61,12 @@ export const RecipeDetailsPage = () => {
     };
 
     if (isFavorite) {
-      removeFavMutation.mutate({ userId: user.uid, recipeId: id! });
+      removeFavMutation.mutate({ userId: user.uid, recipeId: recipeId });
     } else {
       addFavMutation.mutate({
         userId: user.uid,
         recipe: recipeToSave,
-        recipeId: id!,
+        recipeId: recipeId,
       });
     }
   };

@@ -13,7 +13,7 @@ interface RecipeCardProps {
   category: string;
   whereFrom: string;
   isFavorite?: boolean;
-  onToggleFavorite?: (id: string) => void;
+  onToggleFavorite?: () => void;
 }
 
 export const RecipeCard = ({
@@ -40,7 +40,7 @@ export const RecipeCard = ({
             className="absolute top-2 right-2 bg-white/80 hover:bg-white"
             onClick={(e) => {
               e.preventDefault();
-              onToggleFavorite(id);
+              onToggleFavorite();
             }}
           >
             <Heart

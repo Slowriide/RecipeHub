@@ -2,8 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { getRecipeByIdAction } from "../api/get-recipe-by-id.action";
 import type { Recipe } from "@/interfaces/recipe.response";
 
+export interface NormalizedRecipe extends Recipe {
+  tags: string[];
+  instructions: string[];
+  ingredients: string[];
+}
+
 export const useRecipeById = (id: string) => {
-  return useQuery({
+  return useQuery<Recipe | null, Error, NormalizedRecipe | null>({
     queryKey: ["recipe", id],
     queryFn: () => getRecipeByIdAction(id),
     retry: false,
@@ -16,20 +22,9 @@ export const useRecipeById = (id: string) => {
 
       const instructions = recipe.strInstructions
         ? recipe.strInstructions
-            .split(/\r\n|\n|\r/) // separar por saltos de línea
-            .map((line) => line.trim()) // quitar espacios al inicio/final
-            .filter((line) => line.length > 0) // eliminar líneas vacías
-            .reduce<string[]>((acc, line) => {
-              // si la línea empieza con un número + posible punto o espacio, es un nuevo paso
-              if (/^\d+/.test(line)) {
-                acc.push(line.replace(/^\d+\s*/, "")); // quitar el número
-              } else {
-                // si ya hay un paso, agregar a la última línea
-                if (acc.length === 0) acc.push(line);
-                else acc[acc.length - 1] += " " + line;
-              }
-              return acc;
-            }, [])
+            .split(/\r\n|\n|\r/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
         : [];
 
       function getIngredientsWithMeasures(recipe: Recipe) {

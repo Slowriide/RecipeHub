@@ -6,7 +6,7 @@ import {
   useRemoveFavorite,
 } from "@/receipts/hooks/useFavorites";
 
-interface RecipeWithFavorite {
+export interface RecipeWithFavorite {
   id: string;
   title: string;
   description: string;
